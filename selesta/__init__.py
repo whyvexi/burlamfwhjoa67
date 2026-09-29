@@ -1,0 +1,1 @@
+"""Selesta — personal Telegram assistant."""
