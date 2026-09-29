@@ -30,6 +30,13 @@ class Config:
                 raise ValueError(f'Заполни {name} в .env')
             return value
 
+        # Bothost supplies BOT_TOKEN; do not use its USER_ID as a Telegram owner ID.
+        telegram_token = next((os.getenv(name, '').strip() for name in
+                               ('TELEGRAM_BOT_TOKEN', 'BOT_TOKEN', 'API_TOKEN')
+                               if os.getenv(name, '').strip()), '')
+        if not telegram_token:
+            raise ValueError('Заполни TELEGRAM_BOT_TOKEN или BOT_TOKEN в .env/переменных окружения хостинга')
+
         def integer(name, default, low, high):
             try:
                 value = int(os.getenv(name, str(default)))
@@ -47,7 +54,7 @@ class Config:
         if parsed.scheme != 'https' or not parsed.netloc or parsed.query or parsed.fragment or parsed.username:
             raise ValueError('LLM_BASE_URL: нужен HTTPS URL без логина, query и fragment')
         return cls(
-            telegram_token=required('TELEGRAM_BOT_TOKEN'),
+            telegram_token=telegram_token,
             api_key=required('LLM_API_KEY'),
             owner_id=int(owner) if owner else None,
             base_url=base,
