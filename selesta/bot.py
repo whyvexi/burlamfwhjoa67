@@ -23,6 +23,8 @@ HELP = '''Selesta — твоя техническая помощница.
 /forget ID — удалить заметку
 /profile — твой базовый профиль
 /status — модель и размер истории
+/search запрос — поиск в интернете
+/read URL — прочитать страницу
 /id — твой Telegram ID
 /help — команды
 
@@ -121,11 +123,17 @@ def build_router(config: Config, store: Store, llm: LLM):
                     f'Модель: {config.model}\nAPI: {config.base_url}\n'
                     f'История: до {config.history_turns} пар сообщений\n'
                     f'Бюджет истории: {config.context_chars} символов\n'
-                    'Режим: текст, профиль и постоянные заметки'
+                    'Режим: текст, профиль, память, веб-поиск и чтение ссылок'
                 )
-            elif text.startswith('/'):
+            elif text.startswith('/') and command not in {'/search', '/read'}:
                 await message.answer('Неизвестная команда. Список: /help')
             else:
+                initial_tool = None
+                if command in {'/search', '/read'}:
+                    if not argument:
+                        await message.answer('Формат: /search запрос или /read https://example.com')
+                        return
+                    initial_tool = ('web_search', {'query': argument}) if command == '/search' else ('read_url', {'url': argument})
                 async with ChatActionSender.typing(bot=message.bot, chat_id=message.chat.id):
                     profile = (ROOT / 'profile.md').read_text(encoding='utf-8')
                     notes = await store.memories()
@@ -138,7 +146,7 @@ def build_router(config: Config, store: Store, llm: LLM):
                             {'role': 'system', 'content': system},
                             *history,
                             {'role': 'user', 'content': text},
-                        ])
+                        ], initial_tool=initial_tool)
                     except LLMError as exc:
                         await message.answer(str(exc))
                         return
@@ -183,6 +191,7 @@ async def main():
                 ('remember', 'Сохранить заметку'), ('memory', 'Постоянные заметки'),
                 ('forget', 'Удалить заметку по ID'), ('profile', 'Базовый профиль'),
                 ('status', 'Настройки модели'), ('id', 'Мой Telegram ID'),
+                ('search', 'Поиск в интернете'), ('read', 'Прочитать страницу по URL'),
             ]
         ])
         # Long polling requires removing a previous webhook; queued messages are retained.
